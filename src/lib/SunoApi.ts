@@ -42,7 +42,7 @@ export interface AudioInfo {
 class SunoApi {
   private static BASE_URL: string = 'https://studio-api.prod.suno.com';
   private static CLERK_BASE_URL: string = 'https://clerk.suno.com';
-  private static CLERK_VERSION = '5.15.0';
+  private static CLERK_VERSION = '5.56.0';
 
   private readonly client: AxiosInstance;
   private sid?: string;
@@ -94,7 +94,9 @@ class SunoApi {
 
   public async init(): Promise<SunoApi> {
     //await this.getClerkLatestVersion();
+   console.log("before");
     await this.getAuthToken();
+    console.log("after");
     await this.keepAlive();
     return this;
   }
@@ -122,13 +124,16 @@ class SunoApi {
    * Get the session ID and save it for later use.
    */
   private async getAuthToken() {
+    /**
     logger.info('Getting the session ID');
     // URL to get session ID
-    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+    console.log(getSessionUrl);
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl, {
       headers: { Authorization: this.cookies.__client }
     });
+    console.log(sessionResponse);
     if (!sessionResponse?.data?.response?.last_active_session_id) {
       throw new Error(
         'Failed to get session id, you may need to update the SUNO_COOKIE'
@@ -136,6 +141,37 @@ class SunoApi {
     }
     // Save session ID for later use
     this.sid = sessionResponse.data.response.last_active_session_id;
+    */
+    const browser = await this.launchBrowser();
+    const page = await browser.newPage();
+
+    // URL to get session ID
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+
+    // Promise to wait for the response
+    const sessionPromise = new Promise<void>((resolve, reject) => {
+        page.on('response', async (response) => {
+            try {
+                if (response.url() === getSessionUrl) {
+                    const data = await response.json(); // Parse the response as JSON
+                    const lastSessionId = data.response.last_active_session_id; // Extract the last session ID
+                    console.log('Captured last session ID:', lastSessionId);
+                    this.sid = lastSessionId;
+                    resolve(); // Resolve the promise when the response is received
+                }
+            } catch (error) {
+                reject(error); // Reject the promise in case of any errors
+            }
+        });
+    });
+
+    // Navigate to the URL and wait for the response to be captured
+    await page.goto(getSessionUrl, { referer: 'https://www.suno.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+
+    // Wait for the sessionPromise to resolve
+    await sessionPromise;
+    browser.close();
+    console.log('Session ID captured and stored:', this.sid);
   }
 
   /**
@@ -147,18 +183,51 @@ class SunoApi {
       throw new Error('Session ID is not set. Cannot renew token.');
     }
     // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+    const browser = await this.launchBrowser();
+    const page = await browser.newPage();
+    //const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=${SunoApi.CLERK_VERSION}`;
     // Renew session token
     logger.info('KeepAlive...\n');
+    // Promise to wait for the response
+    const sessionPromise = new Promise<void>((resolve, reject) => {
+      page.on('response', async (response) => {
+          try {
+              if (response.url() === renewUrl) {
+                  const data = await response.json(); // Parse the response as JSON
+                  //const newToken = data.response.jwt; // Extract the last session ID
+                  if (isWait) {
+                    await sleep(1, 2);
+                  }
+                  const newToken = data.response.sessions[0].last_active_token.jwt; 
+                  console.log('Captured jwt Token:', newToken);
+                  this.currentToken = newToken;
+                  resolve(); // Resolve the promise when the response is received
+              }
+          } catch (error) {
+              reject(error); // Reject the promise in case of any errors
+          }
+      });
+  });
+
+  // Navigate to the URL and wait for the response to be captured
+  await page.goto(renewUrl, { referer: 'https://www.suno.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+
+  // Wait for the sessionPromise to resolve
+  await sessionPromise;
+  browser.close();
+  console.log('jwt token captured and stored:', this.currentToken);
+    /*
     const renewResponse = await this.client.post(renewUrl, {}, {
       headers: { Authorization: this.cookies.__client }
     });
-    if (isWait) {
-      await sleep(1, 2);
-    }
+    */
+    
+    /*
     const newToken = renewResponse.data.jwt;
     // Update Authorization field in request header with the new JWT token
-    this.currentToken = newToken;
+    */
+    //this.currentToken = newToken;
   }
 
   /**
@@ -726,6 +795,5 @@ export const sunoApi = async (cookie?: string) => {
   const instance = await new SunoApi(resolvedCookie).init();
   // Cache the initialized instance
   cache.set(resolvedCookie, instance);
-
   return instance;
 };
