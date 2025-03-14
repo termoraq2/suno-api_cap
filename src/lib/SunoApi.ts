@@ -147,7 +147,7 @@ class SunoApi {
 
     // URL to get session ID
     const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=${SunoApi.CLERK_VERSION}`;
-
+    console.log(getSessionUrl);
     // Promise to wait for the response
     const sessionPromise = new Promise<void>((resolve, reject) => {
         page.on('response', async (response) => {
@@ -167,7 +167,7 @@ class SunoApi {
 
     // Navigate to the URL and wait for the response to be captured
     await page.goto(getSessionUrl, { referer: 'https://www.suno.com/', waitUntil: 'domcontentloaded', timeout: 0 });
-
+    console.log("here");
     // Wait for the sessionPromise to resolve
     await sessionPromise;
     browser.close();
