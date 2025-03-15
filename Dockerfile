@@ -24,6 +24,7 @@ ENV BROWSER_DISABLE_GPU=true
 RUN npm install --only=production                                                                                       
                                                                                                                     
 # Install all supported browsers, else switching browsers requires an image rebuild                                     
+RUN npx playwright install-deps
 RUN npx playwright install chromium                                                                                     
 # RUN npx playwright install firefox                                                                                     
                                                                                                                     
