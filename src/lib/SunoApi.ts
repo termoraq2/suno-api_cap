@@ -297,7 +297,10 @@ class SunoApi {
     };
   
     try {
-      const response = await axios.request(config);
+      const response = await axios.request({
+        ...config,
+        timeout: 20000 // 20 seconds timeout
+      });
      // console.log(JSON.stringify(response.data));
       return response.data.captchaToken || null;
     } catch (error) {
