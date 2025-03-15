@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+from 'axios';
 import UserAgent from 'user-agents';
 import pino from 'pino';
 import yn from 'yn';
@@ -154,9 +154,15 @@ class SunoApi {
             try {
                 if (response.url() === getSessionUrl) {
                     const data = await response.json(); // Parse the response as JSON
+                    if (!data?.response?.last_active_session_id) {
+                      browser.browser()?.close();
+                      console.log('Failed to get session id, probably hcaptcha');
+                      resolve();
+                    }
                     const lastSessionId = data.response.last_active_session_id; // Extract the last session ID
-                    console.log('Captured last session ID:', lastSessionId);
+                    //console.log('Captured last session ID:', lastSessionId);
                     this.sid = lastSessionId;
+                    browser.browser()?.close();
                     resolve(); // Resolve the promise when the response is received
                 }
             } catch (error) {
@@ -167,11 +173,11 @@ class SunoApi {
 
     // Navigate to the URL and wait for the response to be captured
     await page.goto(getSessionUrl, { referer: 'https://www.suno.com/', waitUntil: 'domcontentloaded', timeout: 0 });
-    console.log("here");
+    //console.log("here");
     // Wait for the sessionPromise to resolve
     await sessionPromise;
-    browser.close();
-    console.log('Session ID captured and stored:', this.sid);
+    
+   // console.log('Session ID captured and stored:', this.sid);
   }
 
   /**
@@ -195,13 +201,21 @@ class SunoApi {
           try {
               if (response.url() === renewUrl) {
                   const data = await response.json(); // Parse the response as JSON
+                  if (!data?.response?.last_active_session_id) {
+                    browser.browser()?.close();
+                    console.log('Failed to get jwt token, probably hcaptcha');
+                    sleep(2);
+                    //this.keepAlive();
+                    resolve();
+                  }
                   //const newToken = data.response.jwt; // Extract the last session ID
                   if (isWait) {
                     await sleep(1, 2);
                   }
                   const newToken = data.response.sessions[0].last_active_token.jwt; 
-                  console.log('Captured jwt Token:', newToken);
+                  //console.log('Captured jwt Token:', newToken);
                   this.currentToken = newToken;
+                  browser.browser()?.close();
                   resolve(); // Resolve the promise when the response is received
               }
           } catch (error) {
@@ -215,8 +229,8 @@ class SunoApi {
 
   // Wait for the sessionPromise to resolve
   await sessionPromise;
-  browser.close();
-  console.log('jwt token captured and stored:', this.currentToken);
+ 
+  //console.log('jwt token captured and stored:', this.currentToken);
     /*
     const renewResponse = await this.client.post(renewUrl, {}, {
       headers: { Authorization: this.cookies.__client }
@@ -366,7 +380,10 @@ class SunoApi {
     };
   
     try {
-      const response = await axios.request(config);
+      const response = await axios.request({
+        ...config,
+        timeout: 20000 // 20 seconds timeout
+      });
      // console.log(JSON.stringify(response.data));
       return response.data.captchaToken || null;
     } catch (error) {
